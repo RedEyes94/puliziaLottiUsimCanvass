@@ -2,6 +2,8 @@ import csv
 import tkinter as tk
 from tkinter import ttk
 from tkinter import messagebox
+from ttkthemes import ThemedStyle
+from script_pulizia import Pulizia
 
 def add_lot():
     msisdn_start = first_num_entry.get()
@@ -43,27 +45,41 @@ def delete_lot():
     if selected_item:
         lot_tree.delete(selected_item)
 
+
 def start_cleanup():
-    response = messagebox.askquestion("Avvia pulizia", "Sei sicuro di avviare la pulizia sui sistemi RETE?")
+    response = messagebox.askquestion("Avvia pulizia", "Sei sicuro di avviare la pulizia sui sistemi RETE? Assicurati di aver aperto il tunnel SSH e avviato il CRT su BHLINAPP")
     if response == 'yes':
-        print("Pulizia avviata")
-        print("Dati in tabella:")
-        for item in lot_tree.get_children():
-            values = lot_tree.item(item, "values")
-            if values:
-                print("Primo Numero:", values[0], "Ultimo Numero:", values[1], "Informazione Aggiuntiva:", values[2], "Altro Campo:", values[3])
+        if catena.get() not in ['3A','3C']:
+            messagebox.showinfo("Catenza non valorizzata", "Non è stata inserita la catena sulla quale eseguire la pulizia")
+            print("Pulizia NON avviata")
+        else:
+            print("Pulizia avviata")
+            print("Dati in tabella:")
+            for item in lot_tree.get_children():
+                values = lot_tree.item(item, "values")
+                if values:
+                    print("Avvio pulizia su catena: " + catena.get())
+                    clean = Pulizia(catena=catena.get())
+                    clean.pulizia_usim_su_rete()
+                    print("Primo Numero:", values[0], "Ultimo Numero:", values[1], "Informazione Aggiuntiva:", values[2], "Altro Campo:", values[3])
     else:
         print("Pulizia NON avviata")
+
 
 # Creazione dell'interfaccia
 root = tk.Tk()
 root.title("Gestione Lotti USIM")
-root.geometry("1200x500")
-root.configure(bg="#1e1e1e")
+root.geometry("1600x500")
+
+style = ThemedStyle(root)
+style.set_theme("breeze")
+
+# Creazione del frame contenitore
+container_frame = ttk.Frame(root)
+container_frame.pack(side="left", fill="y", padx=20, pady=20)
 
 # Creazione dei campi in input
-input_frame = ttk.Frame(root, padding=10)
-input_frame.configure(style="Dark.TFrame")
+input_frame = ttk.Frame(container_frame, padding=10)
 input_frame.pack(side="left", fill="y", padx=20, pady=20)
 
 ttk.Label(input_frame, text="MSISDN Start:").grid(row=0, column=0, padx=5, pady=5)
@@ -88,8 +104,21 @@ add_button.grid(row=4, columnspan=2, pady=10)
 delete_button = ttk.Button(input_frame, text="Elimina Lotto", command=delete_lot)
 delete_button.grid(row=5, columnspan=2, pady=5)
 
-start_cleanup_button = ttk.Button(input_frame, text="Avvia pulizia", command=start_cleanup)
-start_cleanup_button.grid(row=6, columnspan=2, pady=5)
+# Creazione del riquadro per i radio button
+radio_frame = ttk.Frame(container_frame, padding=10)
+radio_frame.pack(side="left", fill="y", padx=20, pady=20)
+
+catena = tk.StringVar()
+
+radio_3A = ttk.Radiobutton(radio_frame, text="3A", variable=catena, value="3A")
+radio_3A.grid(row=6, column=0, padx=5, pady=5)
+
+radio_3C = ttk.Radiobutton(radio_frame, text="3C", variable=catena, value="3C")
+radio_3C.grid(row=6, column=1, padx=5, pady=5)
+
+
+start_cleanup_button = ttk.Button(radio_frame, text="Avvia pulizia", command=start_cleanup)
+start_cleanup_button.grid(row=8, columnspan=2, pady=5)
 
 # Barra di avanzamento
 
@@ -118,10 +147,5 @@ lot_tree.column("#7", width=50)
 lot_tree.heading("#8", text="OCS")
 lot_tree.column("#8", width=50)
 lot_tree.pack(side="right", fill="both", expand=True, padx=20, pady=20)
-
-# Applicazione del tema dark ai widget
-style = ttk.Style()
-style.theme_use("clam")
-style.configure("Dark.TFrame", background="#1e1e1e")
 
 root.mainloop()
