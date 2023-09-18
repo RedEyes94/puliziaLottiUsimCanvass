@@ -5,29 +5,34 @@ from tkinter import messagebox
 from ttkthemes import ThemedStyle
 from script_pulizia import Pulizia
 
+
 def add_lot():
     msisdn_start = first_num_entry.get()
     msisdn_end = last_num_entry.get()
     imsi_start = additional_info_entry.get()
     imsi_end = another_field_entry.get()
     if msisdn_start and msisdn_end and imsi_start and imsi_end:
-        usim_tot = calcola_totale_lotto(msisdn_start,msisdn_end, imsi_start, imsi_end)
+        usim_tot = calcola_totale_lotto(msisdn_start, msisdn_end, imsi_start, imsi_end)
         usim_tot = str(usim_tot)
         if int(usim_tot) <= 0:
-            messagebox.showinfo("Quantità MSISDN/IMSI non conforme", "Il numero di MSISDN inseriti non è pari al numero di IMSI")
+            messagebox.showinfo("Quantità MSISDN/IMSI non conforme",
+                                "Il numero di MSISDN inseriti non è pari al numero di IMSI")
 
-        lot_tree.insert("", "end", values=(msisdn_start, msisdn_end, imsi_start, imsi_end,usim_tot,usim_tot,usim_tot,usim_tot))
+        lot_tree.insert("", "end",
+                        values=(msisdn_start, msisdn_end, imsi_start, imsi_end, usim_tot, usim_tot, usim_tot, usim_tot))
         first_num_entry.delete(0, tk.END)
         last_num_entry.delete(0, tk.END)
         additional_info_entry.delete(0, tk.END)
         another_field_entry.delete(0, tk.END)
 
-def calcola_totale_lotto(msisdn_start,msisdn_end, imsi_start, imsi_end):
+
+def calcola_totale_lotto(msisdn_start, msisdn_end, imsi_start, imsi_end):
     filename = "output.csv"
     rows = []
 
     if msisdn_start is not None and msisdn_end is not None:
-        for msisdn, imsi in zip(range(int(msisdn_start), int(msisdn_end) + 1), range(int(imsi_start), int(imsi_end) + 1)):
+        for msisdn, imsi in zip(range(int(msisdn_start), int(msisdn_end) + 1),
+                                range(int(imsi_start), int(imsi_end) + 1)):
             rows.append((str(msisdn), str(imsi)))
     elif imsi_start is not None and imsi_end is not None:
         for imsi in range(int(imsi_start), int(imsi_end) + 1):
@@ -40,17 +45,34 @@ def calcola_totale_lotto(msisdn_start,msisdn_end, imsi_start, imsi_end):
     print(f"CSV file '{filename}' created successfully.")
     return len(rows)
 
+
 def delete_lot():
     selected_item = lot_tree.selection()
     if selected_item:
         lot_tree.delete(selected_item)
 
 
+def aggiorna_tabella_gui(item_id, new_list):
+
+    # Imposta nuovi valori per l'elemento
+    lot_tree.item(item_id,
+                  values=new_list)
+
+    # Aggiorna la GUI
+    lot_tree.update_idletasks()
+
+
 # Funzione per eseguire le operazioni selezionate
-def switch_sistema(clean):
+def switch_sistema(clean, item, totale_sim, values):
     if operazione1_checkbox.instate(['selected']):
         print("Avvio pulizia su RETE")
-        clean.pulizia_usim_su_rete()
+        # sim_pulite_rete = clean.pulizia_usim_su_rete()
+        sim_pulite_rete = 1
+        usim_rimaste_su_rete = totale_sim-sim_pulite_rete
+
+        new_list = (values[0], values[1], values[2], values[3], usim_rimaste_su_rete, values[5], values[6], values[7])
+
+        aggiorna_tabella_gui(item_id=item, new_list=new_list)
         messagebox.showinfo("Avviso sulla pulizia",
                             "Pulizia su Rete completata")
 
@@ -63,12 +85,15 @@ def switch_sistema(clean):
 
 
 def start_cleanup():
-    response = messagebox.askquestion("Avvia pulizia", "Sei sicuro di avviare la pulizia sui sistemi RETE? Assicurati di aver aperto il tunnel SSH e avviato il CRT su BHLINAPP")
+    response = messagebox.askquestion("Avvia pulizia",
+                                      "Sei sicuro di avviare la pulizia sui sistemi RETE? Assicurati di aver aperto il tunnel SSH e avviato il CRT su BHLINAPP")
     if response == 'yes':
-        if catena.get() not in ['3A','3C']:
-            messagebox.showinfo("Catenza non valorizzata", "Non è stata inserita la catena sulla quale eseguire la pulizia")
+        if catena.get() not in ['3A', '3C']:
+            messagebox.showinfo("Catenza non valorizzata",
+                                "Non è stata inserita la catena sulla quale eseguire la pulizia")
             print("Pulizia NON avviata")
         else:
+            index = 0
             print("Pulizia avviata")
             print("Dati in tabella:")
             for item in lot_tree.get_children():
@@ -76,9 +101,12 @@ def start_cleanup():
                 if values:
                     print("Avvio pulizia su catena: " + catena.get())
                     clean = Pulizia(catena=catena.get())
-                    switch_sistema(clean)
 
-                    print("Primo Numero:", values[0], "Ultimo Numero:", values[1], "Informazione Aggiuntiva:", values[2], "Altro Campo:", values[3])
+                    switch_sistema(clean, item, int(values[4]),values)
+
+                    print("Primo Numero:", values[0], "Ultimo Numero:", values[1], "Informazione Aggiuntiva:",
+                          values[2], "Altro Campo:", values[3])
+                    index += 1
     else:
         print("Pulizia NON avviata")
 
@@ -146,7 +174,6 @@ operazione3_checkbox.grid(row=8, column=0, padx=5, pady=5)
 operazione4_checkbox = ttk.Checkbutton(radio_frame, text="  OCS  ")
 operazione4_checkbox.grid(row=8, column=1, padx=5, pady=5)
 
-
 start_cleanup_button = ttk.Button(radio_frame, text="Avvia pulizia", command=start_cleanup)
 start_cleanup_button.grid(row=10, columnspan=2, pady=5)
 
@@ -159,7 +186,9 @@ progress_bar = ttk.Progressbar(root, mode="determinate", maximum=100, value=0, l
 progress_bar.pack(side="bottom", fill="x", padx=10, pady=10)
 progress_bar['value'] = 50
 # Creazione della tabella per i lotti
-lot_tree = ttk.Treeview(root, columns=("MSISDN Start", "MSISDN End", "IMSI Start", "IMSI End","Rete", "Netdb", "MRM", "OCS"), show="headings")
+lot_tree = ttk.Treeview(root,
+                        columns=("MSISDN Start", "MSISDN End", "IMSI Start", "IMSI End", "Rete", "Netdb", "MRM", "OCS"),
+                        show="headings")
 lot_tree.heading("#1", text="MSISDN Start")
 lot_tree.column("#1", width=150)
 lot_tree.heading("#2", text="MSISDN End")

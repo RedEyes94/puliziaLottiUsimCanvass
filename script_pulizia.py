@@ -18,7 +18,7 @@ class Pulizia:
         return host, headers
 
     def pulizia_usim_su_rete(self):
-
+        sim_pulite = 0
         warnings.filterwarnings("ignore")
         logging.basicConfig(filename='pulizia_usim_rete.log', level=logging.DEBUG,
                             format='%(asctime)s - %(levelname)s - %(message)s')
@@ -68,6 +68,10 @@ class Pulizia:
 
             response = requests.get(url, headers=headers, verify=False)
             logging.info(response.content)
+            if response.status_code == 200:
+                sim_pulite+=1
             if response.status_code != 200:
                 logging.error("Status code diverso da 200, salvo la SIM " + dn + " e riprovo più tardi")
                 usim.append(dn)  # Aggiungi il DN nuovamente all'array per riprovarlo successivamente
+
+        return sim_pulite
