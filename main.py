@@ -46,6 +46,22 @@ def delete_lot():
         lot_tree.delete(selected_item)
 
 
+# Funzione per eseguire le operazioni selezionate
+def switch_sistema(clean):
+    if operazione1_checkbox.instate(['selected']):
+        print("Avvio pulizia su RETE")
+        clean.pulizia_usim_su_rete()
+        messagebox.showinfo("Avviso sulla pulizia",
+                            "Pulizia su Rete completata")
+
+    if operazione2_checkbox.instate(['selected']):
+        print("Avvio pulizia su NETDB")
+    if operazione3_checkbox.instate(['selected']):
+        print("Avvio pulizia su MRM")
+    if operazione4_checkbox.instate(['selected']):
+        print("Avvio pulizia su OCS")
+
+
 def start_cleanup():
     response = messagebox.askquestion("Avvia pulizia", "Sei sicuro di avviare la pulizia sui sistemi RETE? Assicurati di aver aperto il tunnel SSH e avviato il CRT su BHLINAPP")
     if response == 'yes':
@@ -60,7 +76,8 @@ def start_cleanup():
                 if values:
                     print("Avvio pulizia su catena: " + catena.get())
                     clean = Pulizia(catena=catena.get())
-                    clean.pulizia_usim_su_rete()
+                    switch_sistema(clean)
+
                     print("Primo Numero:", values[0], "Ultimo Numero:", values[1], "Informazione Aggiuntiva:", values[2], "Altro Campo:", values[3])
     else:
         print("Pulizia NON avviata")
@@ -116,9 +133,22 @@ radio_3A.grid(row=6, column=0, padx=5, pady=5)
 radio_3C = ttk.Radiobutton(radio_frame, text="3C", variable=catena, value="3C")
 radio_3C.grid(row=6, column=1, padx=5, pady=5)
 
+# Creazione dei checkbox
+operazione1_checkbox = ttk.Checkbutton(radio_frame, text="RETE")
+operazione1_checkbox.grid(row=7, column=0, padx=5, pady=5)
+
+operazione2_checkbox = ttk.Checkbutton(radio_frame, text="NETDB")
+operazione2_checkbox.grid(row=7, column=1, padx=5, pady=5)
+
+operazione3_checkbox = ttk.Checkbutton(radio_frame, text="MRM")
+operazione3_checkbox.grid(row=8, column=0, padx=5, pady=5)
+
+operazione4_checkbox = ttk.Checkbutton(radio_frame, text="  OCS  ")
+operazione4_checkbox.grid(row=8, column=1, padx=5, pady=5)
+
 
 start_cleanup_button = ttk.Button(radio_frame, text="Avvia pulizia", command=start_cleanup)
-start_cleanup_button.grid(row=8, columnspan=2, pady=5)
+start_cleanup_button.grid(row=10, columnspan=2, pady=5)
 
 # Barra di avanzamento
 
