@@ -30,11 +30,11 @@ def calcola_totale_lotto(msisdn_start, msisdn_end, imsi_start, imsi_end):
     filename = "output.csv"
     rows = []
 
-    if msisdn_start is not None and msisdn_end is not None:
+    if msisdn_start != '0' and msisdn_end != '0':
         for msisdn, imsi in zip(range(int(msisdn_start), int(msisdn_end) + 1),
                                 range(int(imsi_start), int(imsi_end) + 1)):
             rows.append((str(msisdn), str(imsi)))
-    elif imsi_start is not None and imsi_end is not None:
+    elif imsi_start != '0' and imsi_end != '0':
         for imsi in range(int(imsi_start), int(imsi_end) + 1):
             rows.append((";", str(imsi)))
 
@@ -66,11 +66,11 @@ def aggiorna_tabella_gui(item_id, new_list):
 def switch_sistema(clean, item, totale_sim, values):
     if operazione1_checkbox.instate(['selected']):
         print("Avvio pulizia su RETE")
-        # sim_pulite_rete = clean.pulizia_usim_su_rete()
-        sim_pulite_rete = 1
-        usim_rimaste_su_rete = totale_sim-sim_pulite_rete
+        sim_pulite_rete = clean.pulizia_usim_su_rete(recovery=False)
+        #sim_pulite_rete = 1
+        usim_rimaste_su_rete = totale_sim-(sim_pulite_rete/2)
 
-        new_list = (values[0], values[1], values[2], values[3], usim_rimaste_su_rete, values[5], values[6], values[7])
+        new_list = (values[0], values[1], values[2], values[3], int(usim_rimaste_su_rete), values[5], values[6], values[7])
 
         aggiorna_tabella_gui(item_id=item, new_list=new_list)
         messagebox.showinfo("Avviso sulla pulizia",
@@ -110,7 +110,14 @@ def start_cleanup():
     else:
         print("Pulizia NON avviata")
 
-
+def recovery_usim():
+    messagebox.showinfo("Avvio recupero USIM",
+                        "La procedura di recupero USIM è stata avviata, assicurati che il file "
+                        "USIM_IN_ERRORE_RETE.csv sia valorizzato")
+    clean = Pulizia(catena=catena.get())
+    clean.pulizia_usim_su_rete(recovery=True)
+    messagebox.showinfo("Avviso pulizia USIM",
+                        "La pulizia è stata completata")
 # Creazione dell'interfaccia
 root = tk.Tk()
 root.title("Gestione Lotti USIM")
@@ -129,18 +136,22 @@ input_frame.pack(side="left", fill="y", padx=20, pady=20)
 
 ttk.Label(input_frame, text="MSISDN Start:").grid(row=0, column=0, padx=5, pady=5)
 first_num_entry = ttk.Entry(input_frame)
+first_num_entry.insert(0, '0')  # Inserisci il valore di default
 first_num_entry.grid(row=0, column=1, padx=5, pady=5)
 
 ttk.Label(input_frame, text="MSISDN End:").grid(row=1, column=0, padx=5, pady=5)
 last_num_entry = ttk.Entry(input_frame)
+last_num_entry.insert(0, '0')  # Inserisci il valore di default
 last_num_entry.grid(row=1, column=1, padx=5, pady=5)
 
 ttk.Label(input_frame, text="IMSI Start:").grid(row=2, column=0, padx=5, pady=5)
 additional_info_entry = ttk.Entry(input_frame)
+additional_info_entry.insert(0, '0')  # Inserisci il valore di default
 additional_info_entry.grid(row=2, column=1, padx=5, pady=5)
 
 ttk.Label(input_frame, text="IMSI End:").grid(row=3, column=0, padx=5, pady=5)
 another_field_entry = ttk.Entry(input_frame)
+another_field_entry.insert(0, '0')  # Inserisci il valore di default
 another_field_entry.grid(row=3, column=1, padx=5, pady=5)
 
 add_button = ttk.Button(input_frame, text="Aggiungi Lotto", command=add_lot)
@@ -148,6 +159,14 @@ add_button.grid(row=4, columnspan=2, pady=10)
 
 delete_button = ttk.Button(input_frame, text="Elimina Lotto", command=delete_lot)
 delete_button.grid(row=5, columnspan=2, pady=5)
+
+recovery_button = ttk.Button(input_frame, text="Recupera SIM su RETE*", command=recovery_usim)
+recovery_button.grid(row=6, columnspan=2, pady=5)
+
+# Creazione della label sotto i bottoni
+label_below_buttons = ttk.Label(input_frame, text="* Con questo pulsante recuperi le SIM in errore presenti nel csv 'USIM_IN_ERRORE_RETE.csv'")
+label_below_buttons.configure(font=("Arial", 8), padding=(10, 5))
+label_below_buttons.grid(row=7, columnspan=2, pady=5)
 
 # Creazione del riquadro per i radio button
 radio_frame = ttk.Frame(container_frame, padding=10)
@@ -168,10 +187,10 @@ operazione1_checkbox.grid(row=7, column=0, padx=5, pady=5)
 operazione2_checkbox = ttk.Checkbutton(radio_frame, text="NETDB")
 operazione2_checkbox.grid(row=7, column=1, padx=5, pady=5)
 
-operazione3_checkbox = ttk.Checkbutton(radio_frame, text="MRM")
+operazione3_checkbox = ttk.Checkbutton(radio_frame, text="MRM", state="disabled")
 operazione3_checkbox.grid(row=8, column=0, padx=5, pady=5)
 
-operazione4_checkbox = ttk.Checkbutton(radio_frame, text="  OCS  ")
+operazione4_checkbox = ttk.Checkbutton(radio_frame, text="  OCS  ", state="disabled")
 operazione4_checkbox.grid(row=8, column=1, padx=5, pady=5)
 
 start_cleanup_button = ttk.Button(radio_frame, text="Avvia pulizia", command=start_cleanup)

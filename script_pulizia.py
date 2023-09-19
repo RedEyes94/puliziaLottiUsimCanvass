@@ -1,3 +1,5 @@
+from tkinter import messagebox
+
 import pandas as pd
 import numpy as np
 import requests
@@ -17,50 +19,56 @@ class Pulizia:
             'Host': 'webgui.tpl.intranet.fw'}
         return host, headers
 
-    def pulizia_usim_su_rete(self):
+    def pulizia_usim_su_rete(self, recovery):
         sim_pulite = 0
         list_sim_error = []
+        termina_pulizia = False
 
         warnings.filterwarnings("ignore")
         logging.basicConfig(filename='pulizia_usim_rete.log', level=logging.DEBUG,
                             format='%(asctime)s - %(levelname)s - %(message)s')
+        if not recovery:
+            # Apri il file CSV iniziale in modalità lettura
+            # Apri il file CSV iniziale in modalità lettura
+            with open('output.csv', 'r', newline='') as input_file:
+                # Leggi il file CSV iniziale
+                reader = csv.reader(input_file, delimiter=';')
 
-        # Apri il file CSV iniziale in modalità lettura
-        # Apri il file CSV iniziale in modalità lettura
-        with open('output.csv', 'r', newline='') as input_file:
-            # Leggi il file CSV iniziale
-            reader = csv.reader(input_file, delimiter=';')
+                # Crea una lista per contenere gli elementi della seconda colonna
+                second_column_items = []
 
-            # Crea una lista per contenere gli elementi della seconda colonna
-            second_column_items = []
+                # Crea una lista per contenere gli elementi della prima colonna
+                first_column_items = []
 
-            # Crea una lista per contenere gli elementi della prima colonna
-            first_column_items = []
+                # Scansiona le righe del file CSV iniziale
+                for row in reader:
+                    if len(row) >= 2:
+                        # Aggiungi l'elemento della seconda colonna alla lista
+                        second_column_items.append(row[1] + ";")
 
-            # Scansiona le righe del file CSV iniziale
-            for row in reader:
-                if len(row) >= 2:
-                    # Aggiungi l'elemento della seconda colonna alla lista
-                    second_column_items.append(row[1]+";")
+                        # Aggiungi l'elemento della prima colonna alla lista
+                        first_column_items.append(row[0] + ";")
 
-                    # Aggiungi l'elemento della prima colonna alla lista
-                    first_column_items.append(row[0]+";")
+            # Apri il file CSV di destinazione in modalità scrittura
+            with open('USIM_RETE.csv', 'w', newline='') as output_file:
+                # Scrivi gli elementi delle due colonne nel nuovo CSV
+                writer = csv.writer(output_file)
 
-        # Apri il file CSV di destinazione in modalità scrittura
-        with open('USIM_RETE.csv', 'w', newline='') as output_file:
-            # Scrivi gli elementi delle due colonne nel nuovo CSV
-            writer = csv.writer(output_file)
-
-            for first, second in zip(first_column_items, second_column_items):
-                writer.writerow([first])
-                writer.writerow([second])
+                for first, second in zip(first_column_items, second_column_items):
+                    writer.writerow([first])
+                    writer.writerow([second])
+            usim = list(np.array(pd.read_csv("USIM_RETE.csv", header=None)))
+        elif recovery:
+            # se devo fare il recovery leggo direttamente il file di USIM in errore
+            usim = list(np.array(pd.read_csv("USIM_IN_ERRORE_RETE.csv", header=None)))
 
         host, headers = self.configurazioni_rete()
-        usim = list(np.array(pd.read_csv("USIM_RETE.csv", header=None)))
 
-        # Cicla finché l'array usim non si svuota
+        # Cicla finché l'array usim non si svuota oppure se l'utente decide di terminare l'esecuzione dopo aver
+        # avuto diversi KO da rete
         while usim:
-            dn = usim.pop(0)[0].replace(";", "")
+            dn = str(usim.pop(0)[0]).replace(";", "")
+
             if dn[0] == '2':
                 url = "https://" + host + "/api/deleteUSIM?imsi=" + dn
                 logging.info("Url generato: " + url)
@@ -70,11 +78,25 @@ class Pulizia:
 
             response = requests.get(url, headers=headers, verify=False)
             logging.info(response.content)
+
             if response.status_code == 200:
-                sim_pulite+=1
+                sim_pulite += 1
             if response.status_code != 200:
-                logging.error("Status code diverso da 200, salvo la SIM " + dn + " e riprovo più tardi")
+                logging.error("Status code diverso da 200, errore :" + str(
+                    response.status_code) + ". Salvo la SIM " + dn + " e riprovo più tardi")
                 usim.append(dn)  # Aggiungi il DN nuovamente all'array per riprovarlo successivamente
                 list_sim_error.append(dn)
+                if len(list_sim_error) > 10:
+                    response = messagebox.askquestion("Errori di raggiungibilità verso RETE",
+                                                      "Rete non sta rispondendo correttamente impedendo la cancellazione di alcune USIM. Vuoi interrompere la pulizia?")
+                    if response == "yes":
+                        logging.info(">>>>>>>>   PULIZIA INTERROTTA DALL'UTENTE    <<<<<<<<<<<<")
+                        termina_pulizia = True # mi fa uscire dal loop e termina la pulizia verso rete
+                        # Apri il file CSV in modalità scrittura
 
+                        with open('USIM_IN_ERRORE_RETE.csv', mode='w', newline='') as csv_file:
+                            # Crea un writer CSV con il separatore personalizzato ';'
+                            csv_writer = csv.writer(csv_file, delimiter=';')
+                            # Scrivi i dati dalla lista nel file CSV
+                            csv_writer.writerow(list_sim_error)
         return sim_pulite
