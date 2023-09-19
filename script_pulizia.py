@@ -19,6 +19,43 @@ class Pulizia:
             'Host': 'webgui.tpl.intranet.fw'}
         return host, headers
 
+    def pulizia_netdb(self, catena):
+        import datetime
+
+        # Nome del file CTL di input
+        input_ctl_file = 'File_pulizia_NETDB/16_Load_TEMP_IMSI_MSISDN_CATENA.ctl'
+
+        # Nome del file CSV di input
+        input_csv_file = 'output.csv'
+
+        # Leggi il contenuto del file CSV
+        with open(input_csv_file, 'r') as csv_file:
+            csv_lines = csv_file.readlines()
+
+        # Rimuovi eventuali spazi bianchi in eccesso dalle righe CSV
+        csv_lines = [line.strip() for line in csv_lines]
+
+        # Formatta le righe CSV nel formato richiesto
+        formatted_lines = [f'"{line.split(";")[0]}";"{line.split(";")[1]}"' for line in csv_lines]
+
+        # Formatta la data corrente nel formato "GG-MM-YYYY"
+        current_date = datetime.datetime.now().strftime('%d-%m-%Y')
+
+        # Crea il nome del nuovo file CTL con la data corrente
+        new_ctl_file_name = f'16_Load_TEMP_IMSI_MSISDN_{current_date}.ctl'
+
+        # Copia il contenuto del file CTL di input nel nuovo file
+        with open(input_ctl_file, 'r') as original_ctl_file:
+            original_content = original_ctl_file.read()
+            with open(new_ctl_file_name, 'w') as new_ctl_file:
+                new_ctl_file.write(original_content)
+
+        # Apri il nuovo file CTL in modalità append e aggiungi le righe formattate una sotto l'altra
+        with open(new_ctl_file_name, 'a') as ctl_file:
+            ctl_file.write('\n'.join(formatted_lines) + '\n')
+
+        print(f'Le righe dal file CSV sono state accodate una sotto l\'altro nel nuovo file CTL: {new_ctl_file_name}')
+
     def pulizia_usim_su_rete(self, recovery):
         sim_pulite = 0
         list_sim_error = []

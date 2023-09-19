@@ -78,6 +78,11 @@ def switch_sistema(clean, item, totale_sim, values):
 
     if operazione2_checkbox.instate(['selected']):
         print("Avvio pulizia su NETDB")
+
+        clean.pulizia_netdb(catena=catena)
+        messagebox.showinfo("Avviso sulla pulizia",
+                            "Creato il file per la pulizia su NETDB (generato il file CTL)")
+
     if operazione3_checkbox.instate(['selected']):
         print("Avvio pulizia su MRM")
     if operazione4_checkbox.instate(['selected']):
@@ -121,6 +126,7 @@ def recovery_usim():
 # Creazione dell'interfaccia
 root = tk.Tk()
 root.title("Gestione Lotti USIM")
+root.iconbitmap("USIM.ico")
 root.geometry("1600x500")
 
 style = ThemedStyle(root)
@@ -164,7 +170,7 @@ recovery_button = ttk.Button(input_frame, text="Recupera SIM su RETE*", command=
 recovery_button.grid(row=6, columnspan=2, pady=5)
 
 # Creazione della label sotto i bottoni
-label_below_buttons = ttk.Label(input_frame, text="* Con questo pulsante recuperi le SIM in errore presenti nel csv 'USIM_IN_ERRORE_RETE.csv'")
+label_below_buttons = ttk.Label(input_frame, text="* Recupera le SIM presenti in 'USIM_IN_ERRORE_RETE.csv'")
 label_below_buttons.configure(font=("Arial", 8), padding=(10, 5))
 label_below_buttons.grid(row=7, columnspan=2, pady=5)
 
