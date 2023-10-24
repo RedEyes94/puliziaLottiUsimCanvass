@@ -1,9 +1,17 @@
 import csv
+import logging
+import numpy as np
 import tkinter as tk
+import warnings
+import pandas as pd
 from tkinter import ttk
 from tkinter import messagebox
+
+import cx_Oracle
+import requests
 from ttkthemes import ThemedStyle
 from script_pulizia import Pulizia
+from script_sdno import SDNO
 
 
 def add_lot():
@@ -28,8 +36,9 @@ def add_lot():
 
 def calcola_totale_lotto(msisdn_start, msisdn_end, imsi_start, imsi_end):
     filename = "output.csv"
+    filename_1 = "output_sdno.csv"
     rows = []
-
+    sdno = []
     if msisdn_start != '0' and msisdn_end != '0':
         for msisdn, imsi in zip(range(int(msisdn_start), int(msisdn_end) + 1),
                                 range(int(imsi_start), int(imsi_end) + 1)):
@@ -38,20 +47,31 @@ def calcola_totale_lotto(msisdn_start, msisdn_end, imsi_start, imsi_end):
         for imsi in range(int(imsi_start), int(imsi_end) + 1):
             rows.append((";", str(imsi)))
 
-    with open(filename, mode='w', newline='') as file:
+    with open(filename, mode='a', newline='') as file:
         writer = csv.writer(file, delimiter=';')
         writer.writerows(rows)
+
+    #sdno.append((int(msisdn_start), int(msisdn_end)))
+    sdno.append((int(imsi_start), int(imsi_end)))
+    with open(filename_1, mode='a', newline='') as file:
+        writer = csv.writer(file, delimiter=';')
+        writer.writerows(sdno)
 
     print(f"CSV file '{filename}' created successfully.")
     return len(rows)
 
-
+# funzione che cancella i lotti dalla tabella
 def delete_lot():
     selected_item = lot_tree.selection()
     if selected_item:
         lot_tree.delete(selected_item)
+    # pulisco il file
+    with open("output.csv", mode='w', newline='') as file:
+        file.write('')  # Scrivi una stringa vuota nel file
+    with open("output_sdno.csv", mode='w', newline='') as file:
+        file.write('')  # Scrivi una stringa vuota nel file
 
-
+# Funzione che aggiorna la gui
 def aggiorna_tabella_gui(item_id, new_list):
 
     # Imposta nuovi valori per l'elemento
@@ -60,7 +80,6 @@ def aggiorna_tabella_gui(item_id, new_list):
 
     # Aggiorna la GUI
     lot_tree.update_idletasks()
-
 
 # Funzione per eseguire le operazioni selezionate
 def switch_sistema(clean, item, totale_sim, values):
@@ -88,16 +107,11 @@ def switch_sistema(clean, item, totale_sim, values):
     if operazione4_checkbox.instate(['selected']):
         print("Avvio pulizia su OCS")
 
-
 def start_cleanup():
     response = messagebox.askquestion("Avvia pulizia",
                                       "Sei sicuro di avviare la pulizia sui sistemi RETE? Assicurati di aver aperto il tunnel SSH e avviato il CRT su BHLINAPP")
     if response == 'yes':
-        if catena.get() not in ['3A', '3C']:
-            messagebox.showinfo("Catenza non valorizzata",
-                                "Non è stata inserita la catena sulla quale eseguire la pulizia")
-            print("Pulizia NON avviata")
-        else:
+        if check_catena() == 0:
             index = 0
             print("Pulizia avviata")
             print("Dati in tabella:")
@@ -115,6 +129,27 @@ def start_cleanup():
     else:
         print("Pulizia NON avviata")
 
+def check_rete():
+
+    url = "https://webgui-3a.tpl.intranet.fw/?msisdn=393756104999&imsi="
+    logging.info("Url generato: " + url)
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.95 Safari/537.36'}
+    response = requests.get(url, headers=headers, verify=False)
+    logging.info(response.content)
+
+    if response.status_code == 200:
+        print ("ok")
+    if response.status_code != 200:
+        logging.error("Status code diverso da 200")
+
+def check_catena():
+    if catena.get() not in ['3A', '3C']:
+        messagebox.showinfo("Catenza non valorizzata",
+                            "Non è stata inserita la catena sulla quale eseguire la pulizia")
+        print("Pulizia NON avviata")
+        return -1
+    return 0
 def recovery_usim():
     messagebox.showinfo("Avvio recupero USIM",
                         "La procedura di recupero USIM è stata avviata, assicurati che il file "
@@ -123,6 +158,19 @@ def recovery_usim():
     clean.pulizia_usim_su_rete(recovery=True)
     messagebox.showinfo("Avviso pulizia USIM",
                         "La pulizia è stata completata")
+
+def recupero_preattivazione():
+    '''
+    Recupera le sim da preattivare, non è la preattivazione completa ma solo una parte
+    :return:
+    '''
+    response = messagebox.askquestion("Avvia recupero preattivazione SDNO",
+                                      "Sei sicuro di avviare la pulizia sui sistemi RETE? Assicurati di aver aperto il tunnel SSH e avviato il CRT su BHLINAPP")
+    if response == 'yes':
+        if check_catena() == 0:
+            sdno = SDNO(catena=catena.get())
+            sdno.SDNO_recupero_preattivazione(lot_tree=lot_tree)
+
 # Creazione dell'interfaccia
 root = tk.Tk()
 root.title("Gestione Lotti USIM")
@@ -202,6 +250,14 @@ operazione4_checkbox.grid(row=8, column=1, padx=5, pady=5)
 start_cleanup_button = ttk.Button(radio_frame, text="Avvia pulizia", command=start_cleanup)
 start_cleanup_button.grid(row=10, columnspan=2, pady=5)
 
+start_cleanup_button = ttk.Button(radio_frame, text="Check rete", command=check_rete)
+start_cleanup_button.grid(row=11, columnspan=2, pady=5)
+
+start_cleanup_button = ttk.Button(radio_frame, text="Recupero SDNO->RETE", command=recupero_preattivazione)
+start_cleanup_button.grid(row=12, columnspan=2, pady=5)
+
+start_cleanup_button = ttk.Button(radio_frame, text="Preattivazione SDNO->RETE", command=recupero_preattivazione)
+start_cleanup_button.grid(row=13, columnspan=2, pady=5)
 # Barra di avanzamento
 
 # Etichetta sopra la barra di avanzamento
@@ -210,6 +266,15 @@ progress_label.pack(side="bottom", padx=5, pady=(10, 0))
 progress_bar = ttk.Progressbar(root, mode="determinate", maximum=100, value=0, length=800)
 progress_bar.pack(side="bottom", fill="x", padx=10, pady=10)
 progress_bar['value'] = 50
+
+
+'''# Creazione della barra di avanzamento
+progressbar_var = tk.IntVar()
+progressbar = ttk.Progressbar(root, mode='determinate', variable=progressbar_var)
+progressbar.grid(row=7, column=1, columnspan=2, padx=20, pady=20)
+progressbar.grid_remove()  # Nascondi la barra di avanzamento inizialmente'''
+
+
 # Creazione della tabella per i lotti
 lot_tree = ttk.Treeview(root,
                         columns=("MSISDN Start", "MSISDN End", "IMSI Start", "IMSI End", "Rete", "Netdb", "MRM", "OCS"),

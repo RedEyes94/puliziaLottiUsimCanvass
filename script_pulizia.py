@@ -103,37 +103,44 @@ class Pulizia:
 
         # Cicla finché l'array usim non si svuota oppure se l'utente decide di terminare l'esecuzione dopo aver
         # avuto diversi KO da rete
+        totale = len(usim)
         while usim:
+
             dn = str(usim.pop(0)[0]).replace(";", "")
+            if dn != '':
+                if dn[0] == '2':
+                    url = "https://" + host + "/api/deleteUSIM?imsi=" + dn
+                    logging.info("Url generato: " + url)
+                else:
+                    url = "https://" + host + "/api/deleteUSIM?msisdn=" + dn + "&imsi="
+                    logging.info("Url generato: " + url)
 
-            if dn[0] == '2':
-                url = "https://" + host + "/api/deleteUSIM?imsi=" + dn
-                logging.info("Url generato: " + url)
-            else:
-                url = "https://" + host + "/api/deleteUSIM?msisdn=" + dn + "&imsi="
-                logging.info("Url generato: " + url)
+                response = requests.get(url, headers=headers, verify=False)
+                logging.info(response.content)
 
-            response = requests.get(url, headers=headers, verify=False)
-            logging.info(response.content)
+                if response.status_code == 200:
+                    sim_pulite += 1
+                if response.status_code != 200:
+                    logging.error("Status code diverso da 200, errore :" + str(
+                        response.status_code) + ". Salvo la SIM " + dn + " e riprovo più tardi")
+                    usim.append(dn)  # Aggiungi il DN nuovamente all'array per riprovarlo successivamente
+                    list_sim_error.append(dn)
+                    if len(list_sim_error) > 10:
+                        response = messagebox.askquestion("Errori di raggiungibilità verso RETE",
+                                                          "Rete non sta rispondendo correttamente impedendo la cancellazione di alcune USIM. Vuoi interrompere la pulizia?")
+                        if response == "yes":
+                            logging.info(">>>>>>>>   PULIZIA INTERROTTA DALL'UTENTE    <<<<<<<<<<<<")
+                            termina_pulizia = True # mi fa uscire dal loop e termina la pulizia verso rete
+                            # Apri il file CSV in modalità scrittura
 
-            if response.status_code == 200:
-                sim_pulite += 1
-            if response.status_code != 200:
-                logging.error("Status code diverso da 200, errore :" + str(
-                    response.status_code) + ". Salvo la SIM " + dn + " e riprovo più tardi")
-                usim.append(dn)  # Aggiungi il DN nuovamente all'array per riprovarlo successivamente
-                list_sim_error.append(dn)
-                if len(list_sim_error) > 10:
-                    response = messagebox.askquestion("Errori di raggiungibilità verso RETE",
-                                                      "Rete non sta rispondendo correttamente impedendo la cancellazione di alcune USIM. Vuoi interrompere la pulizia?")
-                    if response == "yes":
-                        logging.info(">>>>>>>>   PULIZIA INTERROTTA DALL'UTENTE    <<<<<<<<<<<<")
-                        termina_pulizia = True # mi fa uscire dal loop e termina la pulizia verso rete
-                        # Apri il file CSV in modalità scrittura
+                            with open('USIM_IN_ERRORE_RETE.csv', mode='w', newline='') as csv_file:
+                                # Crea un writer CSV con il separatore personalizzato ';'
+                                csv_writer = csv.writer(csv_file, delimiter=';')
+                                # Scrivi i dati dalla lista nel file CSV
+                                csv_writer.writerow(list_sim_error)
+            logging.info("------------------------------------------------------- ")
+            logging.info("----------------  Avanzamento pulizia  ---------------- ")
+            logging.info("---------------- "+str(100 - len(usim)/totale*100)+" % ----------------")
+            logging.info("------------------------------------------------------- ")
 
-                        with open('USIM_IN_ERRORE_RETE.csv', mode='w', newline='') as csv_file:
-                            # Crea un writer CSV con il separatore personalizzato ';'
-                            csv_writer = csv.writer(csv_file, delimiter=';')
-                            # Scrivi i dati dalla lista nel file CSV
-                            csv_writer.writerow(list_sim_error)
         return sim_pulite
