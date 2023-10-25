@@ -10,6 +10,8 @@ from tkinter import messagebox
 import cx_Oracle
 import requests
 from ttkthemes import ThemedStyle
+
+import db_connection
 from script_pulizia import Pulizia
 from script_sdno import SDNO
 
@@ -158,6 +160,22 @@ def recovery_usim():
     clean.pulizia_usim_su_rete(recovery=True)
     messagebox.showinfo("Avviso pulizia USIM",
                         "La pulizia è stata completata")
+def sdno_preattivazione_full():
+    response = messagebox.askquestion("Avvia preattivazione SDNO",
+                                      "Sei sicuro di avviare la preattivazione su SDNO? Assicurati di aver aperto il tunnel SSH e avviato il CRT su BHLINAPP")
+    if response == 'yes':
+        if check_catena() == 0:
+            con = db_connection.DB_Connection(catena.get()).sdno_connection()
+
+            # Configura la connessione in base alla catena
+            if catena.get() == '3A':
+                host = 'localhost:8089'
+            elif catena.get() == '3C':
+                host = 'localhost:8090'
+            else:
+                raise ValueError("Catena non valida")
+    sdno = SDNO(catena=catena.get(), con=con, host=host)
+    sdno.SDNO_preattivazione_full(lot_tree=lot_tree)
 
 def recupero_preattivazione():
     '''
@@ -168,7 +186,16 @@ def recupero_preattivazione():
                                       "Sei sicuro di avviare la pulizia sui sistemi RETE? Assicurati di aver aperto il tunnel SSH e avviato il CRT su BHLINAPP")
     if response == 'yes':
         if check_catena() == 0:
-            sdno = SDNO(catena=catena.get())
+            con = db_connection.DB_Connection(catena.get()).sdno_connection()
+
+            # Configura la connessione in base alla catena
+            if catena.get() == '3A':
+                host = 'localhost:8089'
+            elif catena.get() == '3C':
+                host = 'localhost:8090'
+            else:
+                raise ValueError("Catena non valida")
+            sdno = SDNO(catena=catena.get(), con=con, host=host)
             sdno.SDNO_recupero_preattivazione(lot_tree=lot_tree)
 
 # Creazione dell'interfaccia
@@ -176,6 +203,11 @@ root = tk.Tk()
 root.title("Gestione Lotti USIM")
 root.iconbitmap("USIM.ico")
 root.geometry("1600x500")
+
+with open("output.csv", mode='w', newline='') as file:
+    file.write('')  # Scrivi una stringa vuota nel file
+with open("output_sdno.csv", mode='w', newline='') as file:
+    file.write('')  # Scrivi una stringa vuota nel file
 
 style = ThemedStyle(root)
 style.set_theme("breeze")
@@ -256,7 +288,7 @@ start_cleanup_button.grid(row=11, columnspan=2, pady=5)
 start_cleanup_button = ttk.Button(radio_frame, text="Recupero SDNO->RETE", command=recupero_preattivazione)
 start_cleanup_button.grid(row=12, columnspan=2, pady=5)
 
-start_cleanup_button = ttk.Button(radio_frame, text="Preattivazione SDNO->RETE", command=recupero_preattivazione)
+start_cleanup_button = ttk.Button(radio_frame, text="Preattivazione SDNO->RETE", command=sdno_preattivazione_full)
 start_cleanup_button.grid(row=13, columnspan=2, pady=5)
 # Barra di avanzamento
 

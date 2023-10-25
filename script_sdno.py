@@ -10,88 +10,192 @@ import db_connection
 
 
 class SDNO:
-    def __init__(self, catena):
+    def __init__(self, catena, host, con):
         self.catena = catena
         self.db_conn = db_connection.DB_Connection(self.catena)
+        self.host = host
+        self.con = con
 
-    def SDNO_recupero_preattivazione(self, lot_tree):
-        con = self.db_conn.sdno_connection()
+    def step_3_preattivazione(self, imsi_start, imsi_end, totale):
+        # STEP 1: Esecuzione WF OSS_Oso_update_states
+        self.exe_workflow(url=f"http://{self.host}/sa/sa/startAndWaitForJob", workflow='OSS_OSO_Update_States')
+        sleep(3)
 
-        # Configura la connessione in base alla catena
-        if self.catena == '3A':
-            host = 'localhost:8089'
-        elif self.catena == '3C':
-            host = 'localhost:8090'
+        if self.check_error_from_rete(con=self.con, imsi_start=imsi_start, imsi_end=imsi_end) == - 1:
+            # se abbiamo un errore da rete termino
+            return -1
         else:
-            raise ValueError("Catena non valida")
+            # STEP 2: Verifica status = SCHEDULED, PHASE = NETDB
+            self.wait_for_status_phase(self.con, imsi_start, imsi_end, 'SCHEDULED', 'NETDB_NEW', totale)
+
+        self.exe_workflow(url=f"http://{self.host}/sa/sa/startAndWaitForJob", workflow='OSS_OSO_NETDB_SUBMITNEW')
+        sleep(3)
+
+        if self.check_error_from_rete(con=self.con, imsi_start=imsi_start, imsi_end=imsi_end) == - 1:
+            # se abbiamo un errore da rete termino
+            return -1
+        else:
+            # STEP 4: Verifica status = DONE, PHASE = NETDB
+            self.wait_for_status_phase(self.con, imsi_start, imsi_end, 'DONE', 'NETDB_NEW', totale)
+
+        self.exe_workflow(url=f"http://{self.host}/sa/sa/startAndWaitForJob", workflow='OSS_OSO_Update_States')
+        sleep(3)
+
+        if self.check_error_from_rete(con=self.con, imsi_start=imsi_start, imsi_end=imsi_end) == - 1:
+            # se abbiamo un errore da rete termino
+            return -1
+        else:
+            # STEP 6: Verifica status = SCHEDULED, PHASE = MRM_CS
+            self.wait_for_status_phase(self.con, imsi_start, imsi_end, 'SCHEDULED', 'MRM_CS', totale)
+        # STEP 7: Esecuzione wf OSS_OSO_MRM_ChangeStatus
+        self.exe_workflow(url=f"http://{self.host}/sa/sa/startAndWaitForJob", workflow='OSS_OSO_MRM_ChangeStatus')
+        sleep(3)
+
+        if self.check_error_from_rete(con=self.con, imsi_start=imsi_start, imsi_end=imsi_end) == - 1:
+            # se abbiamo un errore da rete termino
+            return -1
+        else:
+            # STEP 8: Verifica status = DONE, PHASE = MRM_CS
+            self.wait_for_status_phase(self.con, imsi_start, imsi_end, 'DONE', 'MRM_CS', totale)
+
+        # STEP 9: Esecuzione WF OSS_Oso_update_states
+        self.exe_workflow(url=f"http://{self.host}/sa/sa/startAndWaitForJob", workflow='OSS_OSO_Update_States')
+        sleep(3)
+        if self.check_error_from_rete(con=self.con, imsi_start=imsi_start, imsi_end=imsi_end) == - 1:
+            # se abbiamo un errore da rete termino
+            return -1
+        else:
+            # STEP 10: Verifica status = COMPLETED, PHASE = MRM_CS
+            self.wait_for_status_phase(self.con, imsi_start, imsi_end, 'COMPLETED', 'MRM_CS', totale)
+
+    def step_2_preattivazione(self, imsi_start, imsi_end, totale, parziale):
+        # STEP 1
+        self.execute_query(self.con,
+                           f"UPDATE OSO_MOBILE_BROADBAND_USIM SET STATUS = 'SCHEDULED', PHASE = 'DCCORE' WHERE "
+                           f"IMSI BETWEEN '{imsi_start}' AND '{imsi_end}'")
+
+        # STEP 2
+        self.exe_workflow(url=f"http://{self.host}/sa/sa/startAndWaitForJob",
+                          workflow='OSS_OSO_DCCORE_Preprovisioning')
+        sleep(5)
+
+        # STEP 3 & 4: Attendi fino a STATUS = DONE
+        if self.check_error_from_rete(con=self.con, imsi_start=imsi_start, imsi_end=imsi_end) == - 1:
+            # se abbiamo un errore da rete termino
+            return -1
+        else:
+            count = 0
+            while count != totale:
+                res = self.execute_query(self.con,
+                                         f"SELECT count(*) FROM OSO_MOBILE_BROADBAND_USIM WHERE IMSI BETWEEN '{imsi_start}' AND '{imsi_end}' AND STATUS = 'DONE' AND PHASE ='DCCORE'")
+                if len(res) > 0:
+                    count = res[0][0]
+
+                sleep(5)
+
+            # STEP 5
+            self.exe_workflow(url=f"http://{self.host}/sa/sa/startAndWaitForJob",
+                              workflow='OSS_OSO_Update_States')
+            sleep(3)
+
+            # STEP 6 & 7
+            if self.check_error_from_rete(con=self.con, imsi_start=imsi_start, imsi_end=imsi_end) == - 1:
+                # se abbiamo un errore da rete termino
+                return -1
+            count = 0
+            while count != totale:
+                res = self.execute_query(self.con,
+                                         f"SELECT count(*) FROM OSO_MOBILE_BROADBAND_USIM WHERE IMSI BETWEEN '{imsi_start}' AND '{imsi_end}' AND STATUS = 'SCHEDULED' AND PHASE = 'DCVOICE'")
+                if len(res) > 0:
+                    count = res[0][0]
+                sleep(5)
+
+            self.exe_workflow(url=f"http://{self.host}/sa/sa/startAndWaitForJob",
+                              workflow='OSS_OSO_DCVOICE_Preprovisioning')
+
+            # STEP 8 & 9: Attendi fino a STATUS = DONE e PHASE = DCVOICE
+            if self.check_error_from_rete(con=self.con, imsi_start=imsi_start, imsi_end=imsi_end) == - 1:
+                # se abbiamo un errore da rete termino
+                return -1
+            count = 0
+            while count != totale:
+                res = self.execute_query(self.con,
+                                         f"SELECT count(*) FROM OSO_MOBILE_BROADBAND_USIM WHERE IMSI BETWEEN '{imsi_start}' AND '{imsi_end}' AND STATUS = 'DONE' AND PHASE = 'DCVOICE'")
+                if len(res) > 0:
+                    count = res[0][0]
+                sleep(5)
+
+            if parziale == 'SI':
+                # Ultimo STEP: Aggiorna a STATUS = COMPLETED e PHASE = MRM_CS
+                self.execute_query(self.con,
+                                   f"UPDATE OSO_MOBILE_BROADBAND_USIM SET STATUS = 'COMPLETED', PHASE = 'MRM_CS' WHERE "
+                                   f"IMSI BETWEEN '{imsi_start}' AND '{imsi_end}'")
+            return 0
+
+    def step_1_preattivazione(self, imsi_start, imsi_end, totale):
+        # STEP 1: Esecuzione WF OSS_Oso_update_states
+        self.exe_workflow(url=f"http://{self.host}/sa/sa/startAndWaitForJob", workflow='OSS_OSO_Update_States')
+        sleep(3)
+        if self.check_error_from_rete(con=self.con, imsi_start=imsi_start, imsi_end=imsi_end) == - 1:
+            # se abbiamo un errore da rete termino
+            return -1
+        else:
+            # STEP 2: Verifica status = SCHEDULED, PHASE = MRM_UI
+            self.wait_for_status_phase(self.con, imsi_start, imsi_end, 'SCHEDULED', 'MRM_UI', totale)
+
+        # STEP 3: Esecuzione del WF OSS_OSO_MRM_UsimIngestion
+        self.exe_workflow(url=f"http://{self.host}/sa/sa/startAndWaitForJob", workflow='OSS_OSO_MRM_UsimIngestion')
+
+        if self.check_error_from_rete(con=self.con, imsi_start=imsi_start, imsi_end=imsi_end) == - 1:
+            # se abbiamo un errore da rete termino
+            return -1
+        else:
+            # STEP 4: Verifica status = DONE, PHASE = MRM_UI
+            self.wait_for_status_phase(self.con, imsi_start, imsi_end, 'DONE', 'MRM_UI', totale)
+
+        self.exe_workflow(url=f"http://{self.host}/sa/sa/startAndWaitForJob", workflow='OSS_OSO_Update_States')
+        sleep(3)
+
+    def SDNO_preattivazione_full(self, lot_tree):
 
         with open('output_sdno.csv', 'r', newline='') as input_file:
             reader = csv.reader(input_file, delimiter=';')
             for row in reader:
                 imsi_start = row[0]
                 imsi_end = row[1]
-                totale = int(imsi_end)-int(imsi_start) + 1
-                # STEP 1
-                self.execute_query(con,
-                                   f"UPDATE OSO_MOBILE_BROADBAND_USIM SET STATUS = 'SCHEDULED', PHASE = 'DCCORE' WHERE "
-                                   f"IMSI BETWEEN '{imsi_start}' AND '{imsi_end}'")
+                totale = int(imsi_end) - int(imsi_start) + 1
 
-                # STEP 2
-                self.exe_workflow(url=f"http://{host}/sa/sa/startAndWaitForJob",
-                                  workflow='OSS_OSO_DCCORE_Preprovisioning')
-                sleep(5)
+                res = self.step_1_preattivazione(imsi_start=imsi_start, imsi_end=imsi_end, totale=totale)
+                if res == 0:
 
-                # STEP 3 & 4: Attendi fino a STATUS = DONE
-                if self.check_error_from_rete(con=con, imsi_start=imsi_start, imsi_end=imsi_end) == - 1:
-                    # se abbiamo un errore da rete termino
-                    break
-                else:
-                    count = 0
-                    while count != totale:
-                        res = self.execute_query(con,
-                                                 f"SELECT count(*) FROM OSO_MOBILE_BROADBAND_USIM WHERE IMSI BETWEEN '{imsi_start}' AND '{imsi_end}' AND STATUS = 'DONE'")
-                        if len(res)>0:
-                            count = res[0][0]
+                    res = self.step_2_preattivazione(imsi_start=imsi_start, imsi_end=imsi_end, totale=totale,
+                                                     parziale='NO')
 
-                        sleep(5)
+                    if res == 0:
+                        self.step_3_preattivazione(imsi_start=imsi_start, imsi_end=imsi_end, totale=totale)
 
-                    # STEP 5
-                    self.exe_workflow(url=f"http://{host}/sa/sa/startAndWaitForJob",
-                                      workflow='OSS_OSO_Update_States')
-                    sleep(3)
+    # Metodi di supporto
+    def wait_for_status_phase(self, con, imsi_start, imsi_end, status, phase, totale):
+        count = 0
+        while count != totale:
+            res = self.execute_query(con,
+                                     f"SELECT count(*) FROM OSO_MOBILE_BROADBAND_USIM WHERE IMSI BETWEEN '{imsi_start}' AND '{imsi_end}' AND STATUS = '{status}' AND PHASE = '{phase}'")
+            if len(res) > 0:
+                count = res[0][0]
+            sleep(5)
 
-                    # STEP 6 & 7
-                    if self.check_error_from_rete(con=con, imsi_start=imsi_start, imsi_end=imsi_end) == - 1:
-                        # se abbiamo un errore da rete termino
-                        break
-                    count = 0
-                    while count != totale:
-                        res = self.execute_query(con,
-                                                 f"SELECT count(*) FROM OSO_MOBILE_BROADBAND_USIM WHERE IMSI BETWEEN '{imsi_start}' AND '{imsi_end}' AND STATUS = 'SCHEDULED' AND PHASE = 'DCVOICE'")
-                        if len(res) > 0:
-                            count = res[0][0]
-                        sleep(5)
+    def SDNO_recupero_preattivazione(self, lot_tree):
+        with open('output_sdno.csv', 'r', newline='') as input_file:
+            reader = csv.reader(input_file, delimiter=';')
+            for row in reader:
+                imsi_start = row[0]
+                imsi_end = row[1]
+                totale = int(imsi_end) - int(imsi_start) + 1
 
-                    self.exe_workflow(url=f"http://{host}/sa/sa/startAndWaitForJob",
-                                      workflow='OSS_OSO_DCVOICE_Preprovisioning')
+                res = self.step_2_preattivazione(imsi_start=imsi_start, imsi_end=imsi_end, totale=totale,
+                                                 parziale='SI')
 
-                    # STEP 8 & 9: Attendi fino a STATUS = DONE e PHASE = DCVOICE
-                    if self.check_error_from_rete(con=con, imsi_start=imsi_start, imsi_end=imsi_end) == - 1:
-                        # se abbiamo un errore da rete termino
-                        break
-                    count = 0
-                    while count != totale:
-                        res = self.execute_query(con,
-                                                 f"SELECT count(*) FROM OSO_MOBILE_BROADBAND_USIM WHERE IMSI BETWEEN '{imsi_start}' AND '{imsi_end}' AND STATUS = 'DONE' AND PHASE = 'DCVOICE'")
-                        if len(res) > 0:
-                            count = res[0][0]
-                        sleep(5)
-
-                    # Ultimo STEP: Aggiorna a STATUS = COMPLETED e PHASE = MRM_CS
-                    self.execute_query(con,
-                                       f"UPDATE OSO_MOBILE_BROADBAND_USIM SET STATUS = 'COMPLETED', PHASE = 'MRM_CS' WHERE "
-                                       f"IMSI BETWEEN '{imsi_start}' AND '{imsi_end}'")
-
+        return res
 
     def check_error_from_rete(self, con, imsi_start, imsi_end):
         res = self.execute_query(con,
@@ -104,8 +208,6 @@ class SDNO:
                 return -1
 
         return 0
-
-
 
     def execute_query(self, con, query):
 
