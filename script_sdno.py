@@ -67,6 +67,7 @@ class SDNO:
         else:
             # STEP 10: Verifica status = COMPLETED, PHASE = MRM_CS
             self.wait_for_status_phase(self.con, imsi_start, imsi_end, 'COMPLETED', 'MRM_CS', totale)
+        # LOGGA A DB CHE LA SIM E PREATTIVA
 
     def step_2_preattivazione(self, imsi_start, imsi_end, totale, parziale):
         # STEP 1
