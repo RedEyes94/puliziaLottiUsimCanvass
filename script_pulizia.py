@@ -7,10 +7,13 @@ import warnings
 import logging
 import csv
 
+from db_automation import DB_Automation
+
 
 class Pulizia:
     def __init__(self, catena):
         self.catena = catena
+        self.db_automation = DB_Automation
 
     def configurazioni_rete(self):
         host = 'localhost:5000'
@@ -107,15 +110,26 @@ class Pulizia:
         while usim:
 
             dn = str(usim.pop(0)[0]).replace(";", "")
+            msisdn = '0'
+            imsi = '0'
             if dn != '':
                 if dn[0] == '2':
                     url = "https://" + host + "/api/deleteUSIM?imsi=" + dn
                     logging.info("Url generato: " + url)
+                    imsi = dn
                 else:
                     url = "https://" + host + "/api/deleteUSIM?msisdn=" + dn + "&imsi="
                     logging.info("Url generato: " + url)
+                    msisdn = dn
 
                 response = requests.get(url, headers=headers, verify=False)
+                '''
+                Loggo su DB AUTOMATION
+                
+                DA COMPLETARE LA DESCRIZIONE CHE VA INSERITA PER OGNI RIGA NEL FILE USIM_RETE.CSV COSI LA RIUTILIZZO QUI
+                
+                '''
+                self.db_automation.insert_into_db_log(sistema='RETE', msisdn=msisdn, imsi=imsi, url=url, descrizione=descrizione)
                 logging.info(response.content)
 
                 if response.status_code == 200:
@@ -130,7 +144,7 @@ class Pulizia:
                                                           "Rete non sta rispondendo correttamente impedendo la cancellazione di alcune USIM. Vuoi interrompere la pulizia?")
                         if response == "yes":
                             logging.info(">>>>>>>>   PULIZIA INTERROTTA DALL'UTENTE    <<<<<<<<<<<<")
-                            termina_pulizia = True # mi fa uscire dal loop e termina la pulizia verso rete
+                            termina_pulizia = True  # mi fa uscire dal loop e termina la pulizia verso rete
                             # Apri il file CSV in modalità scrittura
 
                             with open('USIM_IN_ERRORE_RETE.csv', mode='w', newline='') as csv_file:
@@ -140,7 +154,7 @@ class Pulizia:
                                 csv_writer.writerow(list_sim_error)
             logging.info("------------------------------------------------------- ")
             logging.info("----------------  Avanzamento pulizia  ---------------- ")
-            logging.info("---------------- "+str(100 - len(usim)/totale*100)+" % ----------------")
+            logging.info("---------------- " + str(100 - len(usim) / totale * 100) + " % ----------------")
             logging.info("------------------------------------------------------- ")
 
         return sim_pulite

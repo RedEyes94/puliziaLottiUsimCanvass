@@ -21,6 +21,7 @@ def add_lot():
     msisdn_end = last_num_entry.get()
     imsi_start = additional_info_entry.get()
     imsi_end = another_field_entry.get()
+    descrizione = descrizione_field_entry.get()
     if msisdn_start and msisdn_end and imsi_start and imsi_end:
         usim_tot = calcola_totale_lotto(msisdn_start, msisdn_end, imsi_start, imsi_end)
         usim_tot = str(usim_tot)
@@ -29,7 +30,7 @@ def add_lot():
                                 "Il numero di MSISDN inseriti non è pari al numero di IMSI")
 
         lot_tree.insert("", "end",
-                        values=(msisdn_start, msisdn_end, imsi_start, imsi_end, usim_tot, usim_tot, usim_tot, usim_tot))
+                        values=(msisdn_start, msisdn_end, imsi_start, imsi_end, usim_tot, usim_tot, descrizione))
         first_num_entry.delete(0, tk.END)
         last_num_entry.delete(0, tk.END)
         additional_info_entry.delete(0, tk.END)
@@ -240,19 +241,24 @@ another_field_entry = ttk.Entry(input_frame)
 another_field_entry.insert(0, '0')  # Inserisci il valore di default
 another_field_entry.grid(row=3, column=1, padx=5, pady=5)
 
+ttk.Label(input_frame, text="Descrizione:").grid(row=4, column=0, padx=5, pady=5)
+descrizione_field_entry = ttk.Entry(input_frame)
+descrizione_field_entry.insert(0, '')  # Inserisci il valore di default
+descrizione_field_entry.grid(row=4, column=1, padx=5, pady=5)
+
 add_button = ttk.Button(input_frame, text="Aggiungi Lotto", command=add_lot)
-add_button.grid(row=4, columnspan=2, pady=10)
+add_button.grid(row=5, columnspan=2, pady=10)
 
 delete_button = ttk.Button(input_frame, text="Elimina Lotto", command=delete_lot)
-delete_button.grid(row=5, columnspan=2, pady=5)
+delete_button.grid(row=6, columnspan=2, pady=5)
 
 recovery_button = ttk.Button(input_frame, text="Recupera SIM su RETE*", command=recovery_usim)
-recovery_button.grid(row=6, columnspan=2, pady=5)
+recovery_button.grid(row=7, columnspan=2, pady=5)
 
 # Creazione della label sotto i bottoni
 label_below_buttons = ttk.Label(input_frame, text="* Recupera le SIM presenti in 'USIM_IN_ERRORE_RETE.csv'")
 label_below_buttons.configure(font=("Arial", 8), padding=(10, 5))
-label_below_buttons.grid(row=7, columnspan=2, pady=5)
+label_below_buttons.grid(row=8, columnspan=2, pady=5)
 
 # Creazione del riquadro per i radio button
 radio_frame = ttk.Frame(container_frame, padding=10)
@@ -261,35 +267,35 @@ radio_frame.pack(side="left", fill="y", padx=20, pady=20)
 catena = tk.StringVar()
 
 radio_3A = ttk.Radiobutton(radio_frame, text="3A", variable=catena, value="3A")
-radio_3A.grid(row=6, column=0, padx=5, pady=5)
+radio_3A.grid(row=7, column=0, padx=5, pady=5)
 
 radio_3C = ttk.Radiobutton(radio_frame, text="3C", variable=catena, value="3C")
-radio_3C.grid(row=6, column=1, padx=5, pady=5)
+radio_3C.grid(row=7, column=1, padx=5, pady=5)
 
 # Creazione dei checkbox
 operazione1_checkbox = ttk.Checkbutton(radio_frame, text="RETE")
-operazione1_checkbox.grid(row=7, column=0, padx=5, pady=5)
+operazione1_checkbox.grid(row=8, column=0, padx=5, pady=5)
 
 operazione2_checkbox = ttk.Checkbutton(radio_frame, text="NETDB")
-operazione2_checkbox.grid(row=7, column=1, padx=5, pady=5)
+operazione2_checkbox.grid(row=8, column=1, padx=5, pady=5)
 
 operazione3_checkbox = ttk.Checkbutton(radio_frame, text="MRM", state="disabled")
-operazione3_checkbox.grid(row=8, column=0, padx=5, pady=5)
+operazione3_checkbox.grid(row=9, column=0, padx=5, pady=5)
 
 operazione4_checkbox = ttk.Checkbutton(radio_frame, text="  OCS  ", state="disabled")
-operazione4_checkbox.grid(row=8, column=1, padx=5, pady=5)
+operazione4_checkbox.grid(row=9, column=1, padx=5, pady=5)
 
 start_cleanup_button = ttk.Button(radio_frame, text="Avvia pulizia", command=start_cleanup)
-start_cleanup_button.grid(row=10, columnspan=2, pady=5)
-
-start_cleanup_button = ttk.Button(radio_frame, text="Check rete", command=check_rete)
 start_cleanup_button.grid(row=11, columnspan=2, pady=5)
 
-start_cleanup_button = ttk.Button(radio_frame, text="Recupero SDNO->RETE", command=recupero_preattivazione)
+start_cleanup_button = ttk.Button(radio_frame, text="Check rete", command=check_rete)
 start_cleanup_button.grid(row=12, columnspan=2, pady=5)
 
-start_cleanup_button = ttk.Button(radio_frame, text="Preattivazione SDNO->RETE", command=sdno_preattivazione_full)
+start_cleanup_button = ttk.Button(radio_frame, text="Recupero SDNO->RETE", command=recupero_preattivazione)
 start_cleanup_button.grid(row=13, columnspan=2, pady=5)
+
+start_cleanup_button = ttk.Button(radio_frame, text="Preattivazione SDNO->RETE", command=sdno_preattivazione_full)
+start_cleanup_button.grid(row=14, columnspan=2, pady=5)
 # Barra di avanzamento
 
 # Etichetta sopra la barra di avanzamento
@@ -309,7 +315,7 @@ progressbar.grid_remove()  # Nascondi la barra di avanzamento inizialmente'''
 
 # Creazione della tabella per i lotti
 lot_tree = ttk.Treeview(root,
-                        columns=("MSISDN Start", "MSISDN End", "IMSI Start", "IMSI End", "Rete", "Netdb", "MRM", "OCS"),
+                        columns=("MSISDN Start", "MSISDN End", "IMSI Start", "IMSI End", "Rete", "Netdb", "MRM"),
                         show="headings")
 lot_tree.heading("#1", text="MSISDN Start")
 lot_tree.column("#1", width=150)
@@ -323,10 +329,8 @@ lot_tree.heading("#5", text="Rete")
 lot_tree.column("#5", width=50)
 lot_tree.heading("#6", text="Netdb")
 lot_tree.column("#6", width=50)
-lot_tree.heading("#7", text="MRM")
-lot_tree.column("#7", width=50)
-lot_tree.heading("#8", text="OCS")
-lot_tree.column("#8", width=50)
+lot_tree.heading("#7", text="Descrizione")
+lot_tree.column("#7", width=100)
 lot_tree.pack(side="right", fill="both", expand=True, padx=20, pady=20)
 
 root.mainloop()
