@@ -115,6 +115,58 @@ def switch_sistema(clean,cat):
     if operazione4_checkbox.instate(['selected']):
         print("Avvio pulizia su OCS")
 
+import csv
+import os
+
+def splita_csv_lotti():
+    lot_number = 0
+    batch_size = 500
+    current_batch_size = 0
+
+    with open('output.csv', 'r') as csv_file:
+        csv_reader = csv.reader(csv_file, delimiter=';')
+
+        # Creazione della cartella per i lotti, se non esiste
+        output_folder = 'output_lots'
+        os.makedirs(output_folder, exist_ok=True)
+
+        # Inizializzazione del primo lotto
+        current_lot = None
+        lot_writer = None
+
+        for row in csv_reader:
+            if current_batch_size == 0 or current_lot is None:
+                lot_number += 1
+                current_lot = f"{row[2]}-Parte_{lot_number}"
+                current_batch_size = 0
+
+                # Crea un nuovo file per il lotto corrente
+                lot_file_path = os.path.join(output_folder, f"{current_lot}.csv")
+                lot_writer = csv.writer(open(lot_file_path, 'w'), delimiter=',', lineterminator='\n')
+
+            lot_writer.writerow([row[0], row[1]])
+            current_batch_size += 1
+
+            # Se la dimensione del lotto raggiunge 500, prepara un nuovo lotto
+            if current_batch_size >= batch_size:
+                current_lot = None
+
+        remove_empty_last_row(lot_file_path)
+    print("File CSV diviso in lotti completato.")
+
+def remove_empty_last_row(file_path):
+    # Leggi il contenuto del file CSV in una lista
+    with open(file_path, 'r') as csv_file:
+        lines = csv_file.readlines()
+
+    # Verifica se l'ultima riga è vuota e rimuovila se lo è
+    if lines and lines[-1].strip() == '':
+        lines.pop()
+
+    # Sovrascrivi il file con il contenuto aggiornato
+    with open(file_path, 'w') as csv_file:
+        csv_file.writelines(lines)
+
 
 def start_cleanup():
     response = messagebox.askquestion("Avvia pulizia",
@@ -308,6 +360,9 @@ start_cleanup_button.grid(row=13, columnspan=2, pady=5)
 
 start_cleanup_button = ttk.Button(radio_frame, text="Preattivazione SDNO->RETE", command=sdno_preattivazione_full)
 start_cleanup_button.grid(row=14, columnspan=2, pady=5)
+
+split_csv = ttk.Button(radio_frame, text="Splitta CSV", command=splita_csv_lotti)
+split_csv.grid(row=15, columnspan=2, pady=5)
 # Barra di avanzamento
 
 # Etichetta sopra la barra di avanzamento
