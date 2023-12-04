@@ -7,6 +7,7 @@ import logging
 import cx_Oracle
 import requests
 import db_connection
+from db_automation import DB_Automation
 
 
 class SDNO:
@@ -15,6 +16,7 @@ class SDNO:
         self.db_conn = db_connection.DB_Connection(self.catena)
         self.host = host
         self.con = con
+        self.db_automation = DB_Automation()
 
     def step_3_preattivazione(self, imsi_start, imsi_end, totale):
         # STEP 1: Esecuzione WF OSS_Oso_update_states
@@ -157,24 +159,31 @@ class SDNO:
         self.exe_workflow(url=f"http://{self.host}/sa/sa/startAndWaitForJob", workflow='OSS_OSO_Update_States')
         sleep(3)
 
-    def SDNO_preattivazione_full(self, lot_tree):
+    def SDNO_preattivazione_full(self, lot_tree, catena):
 
         with open('output_sdno.csv', 'r', newline='') as input_file:
             reader = csv.reader(input_file, delimiter=';')
             for row in reader:
                 imsi_start = row[0]
                 imsi_end = row[1]
+                descrizione = row[2]
                 totale = int(imsi_end) - int(imsi_start) + 1
 
                 res = self.step_1_preattivazione(imsi_start=imsi_start, imsi_end=imsi_end, totale=totale)
+                self.db_automation.insert_into_db_sim(sistema='SDNO',msisdn=imsi_start,imsi=imsi_end,stato='IN PREATTIVAZIONE-Step 1',descrizione=descrizione, catena=catena)
                 if res == 0:
 
                     res = self.step_2_preattivazione(imsi_start=imsi_start, imsi_end=imsi_end, totale=totale,
                                                      parziale='NO')
+                    self.db_automation.insert_into_db_sim(sistema='SDNO', msisdn=imsi_start, imsi=imsi_end,
+                                                          stato='IN PREATTIVAZIONE-Step 2',
+                                                          descrizione=descrizione,catena=catena)
 
                     if res == 0:
                         self.step_3_preattivazione(imsi_start=imsi_start, imsi_end=imsi_end, totale=totale)
-
+                        self.db_automation.insert_into_db_sim(sistema='SDNO', msisdn=imsi_start, imsi=imsi_end,
+                                                              stato='PREATTIVA',
+                                                              descrizione=descrizione,catena=catena)
     # Metodi di supporto
     def wait_for_status_phase(self, con, imsi_start, imsi_end, status, phase, totale):
         count = 0

@@ -1,5 +1,6 @@
 from datetime import datetime
 
+import cx_Oracle
 import mysql.connector
 import configparser
 
@@ -39,12 +40,39 @@ class DB_Automation:
 
         return cursor, connection
 
-    def insert_into_db_log(self, sistema, msisdn, imsi, url, descrizione):
+    def insert_into_db_log(self, sistema, msisdn, imsi, url, esito,stato, descrizione, response, catena):
+        try:
+            cursor, connection = self.connect_to_automation_db()
+
+            # Assicurati che response sia una stringa, se è in formato binario, decodificalo
+            if isinstance(response, bytes):
+                response = response.decode('utf-8')
+
+            query = """
+                   INSERT INTO LOG_USIM_CANVAS 
+                   (SISTEMA, MSISDN, IMSI, STATO, URL, DESCRIZIONE,CATENA, ESITO, ERRORE, DATA_ESECUZIONE, RESPONSE) 
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, '-', %s, %s)
+               """
+
+            cursor.execute(query, (sistema, msisdn, imsi, stato, url, descrizione,catena, esito, datetime.now(), response))
+
+            id = cursor.lastrowid
+            connection.commit()
+            print(cursor.rowcount, "Record inserted successfully")
+
+        except mysql.connector.Error as e:
+            print("Error occurred:", e)
+        finally:
+            if cursor is not None:
+                cursor.close()
+
+        return id
+
+    def insert_into_db_sim(self, sistema, msisdn, imsi,stato, descrizione, catena):
         cursor, connection = self.connect_to_automation_db()
         cursor.execute(
-            "INSERT INTO LOG_USIM_CANVAS (SISTEMA, MSISDN, IMSI, URL, DESCRIZIONE, ESITO, ERRORE, DATA_ESECUZIONE) "
-            "VALUES ('" + sistema + "', '" + msisdn + "', '" + imsi + "', '" + url + "', '" + descrizione + "', '-',"
-                                                                                                            "'-',"
+            "INSERT INTO USIM_CANVASS (SISTEMA, MSISDN, IMSI, STATO, DESCRIZIONE, CATENA, DATA_INSERIMENTO) "
+            "VALUES ('" + sistema + "', '" + msisdn + "', '" + imsi + "', '" + stato + "','" + descrizione + "', '"+catena+"', "
                                                                                                             "'" + str(
                 datetime.now()) + "')")
         id = cursor.lastrowid

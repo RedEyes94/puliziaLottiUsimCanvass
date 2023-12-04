@@ -13,7 +13,7 @@ from db_automation import DB_Automation
 class Pulizia:
     def __init__(self, catena):
         self.catena = catena
-        self.db_automation = DB_Automation
+        self.db_automation = DB_Automation()
 
     def configurazioni_rete(self):
         host = 'localhost:5000'
@@ -45,7 +45,7 @@ class Pulizia:
         current_date = datetime.datetime.now().strftime('%d-%m-%Y')
 
         # Crea il nome del nuovo file CTL con la data corrente
-        new_ctl_file_name = f'16_Load_TEMP_IMSI_MSISDN_{current_date}.ctl'
+        new_ctl_file_name = f'16_Load_TEMP_IMSI_MSISDN_{catena}.ctl'
 
         # Copia il contenuto del file CTL di input nel nuovo file
         with open(input_ctl_file, 'r') as original_ctl_file:
@@ -59,9 +59,10 @@ class Pulizia:
 
         print(f'Le righe dal file CSV sono state accodate una sotto l\'altro nel nuovo file CTL: {new_ctl_file_name}')
 
-    def pulizia_usim_su_rete(self, recovery):
+    def pulizia_usim_su_rete(self, recovery,catena):
         sim_pulite = 0
         list_sim_error = []
+        only_imsi = False
         termina_pulizia = False
 
         warnings.filterwarnings("ignore")
@@ -80,6 +81,7 @@ class Pulizia:
                 # Crea una lista per contenere gli elementi della prima colonna
                 first_column_items = []
 
+                third_column_items = []
                 # Scansiona le righe del file CSV iniziale
                 for row in reader:
                     if len(row) >= 2:
@@ -88,15 +90,28 @@ class Pulizia:
 
                         # Aggiungi l'elemento della prima colonna alla lista
                         first_column_items.append(row[0] + ";")
+                        try:
+                            third_column_items.append(row[2] + ";")
+                            if row[0] == ';':
+                                only_imsi = True
+                        except IndexError:
+                            print("Indice 2 non presente nella riga, salto la riga")
+                            only_imsi = True
+                            continue
 
             # Apri il file CSV di destinazione in modalità scrittura
             with open('USIM_RETE.csv', 'w', newline='') as output_file:
                 # Scrivi gli elementi delle due colonne nel nuovo CSV
                 writer = csv.writer(output_file)
 
-                for first, second in zip(first_column_items, second_column_items):
-                    writer.writerow([first])
-                    writer.writerow([second])
+                if only_imsi:
+                    for second, third in zip(second_column_items, third_column_items):
+                        writer.writerow([second,third])
+
+                else:
+                    for first, second, third in zip(first_column_items, second_column_items, third_column_items):
+                        writer.writerow([first,third])
+                        writer.writerow([second,third])
             usim = list(np.array(pd.read_csv("USIM_RETE.csv", header=None)))
         elif recovery:
             # se devo fare il recovery leggo direttamente il file di USIM in errore
@@ -107,11 +122,14 @@ class Pulizia:
         # Cicla finché l'array usim non si svuota oppure se l'utente decide di terminare l'esecuzione dopo aver
         # avuto diversi KO da rete
         totale = len(usim)
+        count = 0
+        msisdn = '0'
+        imsi = '0'
         while usim:
-
+            count=count+1
+            descrizione = usim[0][1].replace(";", "")
             dn = str(usim.pop(0)[0]).replace(";", "")
-            msisdn = '0'
-            imsi = '0'
+
             if dn != '':
                 if dn[0] == '2':
                     url = "https://" + host + "/api/deleteUSIM?imsi=" + dn
@@ -125,12 +143,27 @@ class Pulizia:
                 response = requests.get(url, headers=headers, verify=False)
                 '''
                 Loggo su DB AUTOMATION
-                
+                CREATE TABLE LOG_USIM_CANVAS (
+                    ID INT AUTO_INCREMENT PRIMARY KEY,
+                    SISTEMA VARCHAR(50),
+                    MSISDN VARCHAR(50),
+                    IMSI VARCHAR(50),
+                    STATO, VARCHAR(50), --> pulita/preattivata
+                    DESCRIZIONE VARCHAR(200),
+                    URL VARCHAR(200),
+                    ESITO VARCHAR(250), --> esito del web service
+                    ERRORE VARCHAR(250),
+                    DATA_ESECUZIONE VARCHAR(50)
+                );
                 DA COMPLETARE LA DESCRIZIONE CHE VA INSERITA PER OGNI RIGA NEL FILE USIM_RETE.CSV COSI LA RIUTILIZZO QUI
                 
                 '''
-                self.db_automation.insert_into_db_log(sistema='RETE', msisdn=msisdn, imsi=imsi, url=url, descrizione=descrizione)
+                self.db_automation.insert_into_db_log(sistema='RETE', msisdn=msisdn, catena=catena,imsi=imsi, url=url, esito=str(response.status_code), stato='PULITA', descrizione=descrizione, response=response.content)
                 logging.info(response.content)
+                if count % 2 == 0:
+                    self.db_automation.insert_into_db_sim(sistema='RETE', msisdn=msisdn, catena=catena,imsi=imsi, stato='PULITA', descrizione=descrizione)
+                    msisdn = '0'
+                    imsi = '0'
 
                 if response.status_code == 200:
                     sim_pulite += 1
