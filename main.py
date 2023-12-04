@@ -47,6 +47,7 @@ def calcola_totale_lotto(msisdn_start, msisdn_end, imsi_start, imsi_end, descriz
                                 range(int(imsi_start), int(imsi_end) + 1)):
             rows.append((str(msisdn), str(imsi), descrizione))
     elif imsi_start != '0' and imsi_end != '0':
+        # solo per IMSI
         for imsi in range(int(imsi_start), int(imsi_end) + 1):
             rows.append((";",str(imsi), descrizione))
 

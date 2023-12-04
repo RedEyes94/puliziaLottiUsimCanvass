@@ -31,10 +31,25 @@ class Pulizia:
         # Nome del file CSV di input
         input_csv_file = 'output.csv'
 
+        '''
+        Sostituisco lo 0
+        '''
+        # Leggi il contenuto del file CSV
+        with open(input_csv_file, 'r') as csv_file:
+            csv_read = csv_file.read()
+        # Sostituisci il carattere ";" con un altro carattere o una stringa vuota, a seconda delle tue esigenze
+        # Supponiamo di voler sostituire ";" con ","
+        csv_read = csv_read.replace('";"', '0')
+        # Sovrascrivi il file CSV con il contenuto modificato
+        with open(input_csv_file, 'w') as csv_file:
+            csv_file.write(csv_read)
+
+        '''
+        Leggo il csv pulito
+        '''
         # Leggi il contenuto del file CSV
         with open(input_csv_file, 'r') as csv_file:
             csv_lines = csv_file.readlines()
-
         # Rimuovi eventuali spazi bianchi in eccesso dalle righe CSV
         csv_lines = [line.strip() for line in csv_lines]
 
@@ -45,16 +60,20 @@ class Pulizia:
         current_date = datetime.datetime.now().strftime('%d-%m-%Y')
 
         # Crea il nome del nuovo file CTL con la data corrente
-        new_ctl_file_name = f'16_Load_TEMP_IMSI_MSISDN_{catena}.ctl'
+        new_ctl_file_name = f'16_Load_TEMP_IMSI_MSISDN_{self.catena}.ctl'
 
         # Copia il contenuto del file CTL di input nel nuovo file
         with open(input_ctl_file, 'r') as original_ctl_file:
             original_content = original_ctl_file.read()
+            # Sostituisci "CATENA" con il valore desiderato (self.catena)
+            original_content = original_content.replace('CATENA', self.catena)
+
             with open(new_ctl_file_name, 'w') as new_ctl_file:
                 new_ctl_file.write(original_content)
 
         # Apri il nuovo file CTL in modalità append e aggiungi le righe formattate una sotto l'altra
         with open(new_ctl_file_name, 'a') as ctl_file:
+            formatted_lines = [line.replace('"0"', '""') for line in formatted_lines]
             ctl_file.write('\n'.join(formatted_lines) + '\n')
 
         print(f'Le righe dal file CSV sono state accodate una sotto l\'altro nel nuovo file CTL: {new_ctl_file_name}')
