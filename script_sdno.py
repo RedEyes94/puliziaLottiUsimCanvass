@@ -18,7 +18,7 @@ class SDNO:
         self.con = con
         self.db_automation = DB_Automation()
 
-    def step_3_preattivazione(self, imsi_start, imsi_end, totale):
+    def step_3_preattivazione(self, imsi_start, imsi_end, totale, descrizione, catena):
         # STEP 1: Esecuzione WF OSS_Oso_update_states
         self.exe_workflow(url=f"http://{self.host}/sa/sa/startAndWaitForJob", workflow='OSS_OSO_Update_States')
         sleep(3)
@@ -70,8 +70,12 @@ class SDNO:
             # STEP 10: Verifica status = COMPLETED, PHASE = MRM_CS
             self.wait_for_status_phase(self.con, imsi_start, imsi_end, 'COMPLETED', 'MRM_CS', totale)
         # LOGGA A DB CHE LA SIM E PREATTIVA
+        self.db_automation.insert_into_db_sim(sistema='SDNO', msisdn=imsi_start, imsi=imsi_end,
+                                              stato='PREATTIVA',
+                                              descrizione=descrizione, catena=self.catena)
+        return 0
 
-    def step_2_preattivazione(self, imsi_start, imsi_end, totale, parziale):
+    def step_2_preattivazione(self, imsi_start, imsi_end, totale, parziale, descrizione, catena):
         # STEP 1
         self.execute_query(self.con,
                            f"UPDATE OSO_MOBILE_BROADBAND_USIM SET STATUS = 'SCHEDULED', PHASE = 'DCCORE' WHERE "
@@ -133,9 +137,12 @@ class SDNO:
                 self.execute_query(self.con,
                                    f"UPDATE OSO_MOBILE_BROADBAND_USIM SET STATUS = 'COMPLETED', PHASE = 'MRM_CS' WHERE "
                                    f"IMSI BETWEEN '{imsi_start}' AND '{imsi_end}'")
+            self.db_automation.insert_into_db_sim(sistema='SDNO', msisdn=imsi_start, imsi=imsi_end,
+                                                  stato='PREATTIVAZIONE-Step 2',
+                                                  descrizione=descrizione, catena=self.catena)
             return 0
 
-    def step_1_preattivazione(self, imsi_start, imsi_end, totale):
+    def step_1_preattivazione(self, imsi_start, imsi_end, totale, descrizione, catena):
         # STEP 1: Esecuzione WF OSS_Oso_update_states
         self.exe_workflow(url=f"http://{self.host}/sa/sa/startAndWaitForJob", workflow='OSS_OSO_Update_States')
         sleep(3)
@@ -158,6 +165,10 @@ class SDNO:
 
         self.exe_workflow(url=f"http://{self.host}/sa/sa/startAndWaitForJob", workflow='OSS_OSO_Update_States')
         sleep(3)
+        self.db_automation.insert_into_db_sim(sistema='SDNO', msisdn=imsi_start, imsi=imsi_end,
+                                              stato='IN PREATTIVAZIONE-Step 1', descrizione=descrizione,
+                                              catena=self.catena)
+        return 0
 
     def SDNO_preattivazione_full(self, lot_tree, catena):
 
@@ -169,21 +180,17 @@ class SDNO:
                 descrizione = row[2]
                 totale = int(imsi_end) - int(imsi_start) + 1
 
-                res = self.step_1_preattivazione(imsi_start=imsi_start, imsi_end=imsi_end, totale=totale)
-                self.db_automation.insert_into_db_sim(sistema='SDNO',msisdn=imsi_start,imsi=imsi_end,stato='IN PREATTIVAZIONE-Step 1',descrizione=descrizione, catena=catena)
+                res = self.step_1_preattivazione(imsi_start=imsi_start, imsi_end=imsi_end, totale=totale,
+                                                 catena=self.catena, descrizione=descrizione)
                 if res == 0:
 
                     res = self.step_2_preattivazione(imsi_start=imsi_start, imsi_end=imsi_end, totale=totale,
-                                                     parziale='NO')
-                    self.db_automation.insert_into_db_sim(sistema='SDNO', msisdn=imsi_start, imsi=imsi_end,
-                                                          stato='IN PREATTIVAZIONE-Step 2',
-                                                          descrizione=descrizione,catena=catena)
+                                                     parziale='NO', descrizione=descrizione, catena=catena)
 
                     if res == 0:
-                        self.step_3_preattivazione(imsi_start=imsi_start, imsi_end=imsi_end, totale=totale)
-                        self.db_automation.insert_into_db_sim(sistema='SDNO', msisdn=imsi_start, imsi=imsi_end,
-                                                              stato='PREATTIVA',
-                                                              descrizione=descrizione,catena=catena)
+                        self.step_3_preattivazione(imsi_start=imsi_start, imsi_end=imsi_end, totale=totale,
+                                                   catena=self.catena, descrizione=descrizione)
+
     # Metodi di supporto
     def wait_for_status_phase(self, con, imsi_start, imsi_end, status, phase, totale):
         count = 0
@@ -200,10 +207,11 @@ class SDNO:
             for row in reader:
                 imsi_start = row[0]
                 imsi_end = row[1]
+                descrizione = row[2]
                 totale = int(imsi_end) - int(imsi_start) + 1
 
                 res = self.step_2_preattivazione(imsi_start=imsi_start, imsi_end=imsi_end, totale=totale,
-                                                 parziale='SI')
+                                                 parziale='SI', descrizione=descrizione, catena=self.catena)
 
         return res
 
@@ -246,7 +254,10 @@ class SDNO:
         if workflow not in ('OSS_OSO_DCCORE_Preprovisioning',
                             'OSS_OSO_Update_States',
                             'OSS_OSO_DCVOICE_Preprovisioning',
-                            'OOG_MIG_NPNNG_MANUAL_ACTION_DEFAULT_KO_CREATOR'):
+                            'OOG_MIG_NPNNG_MANUAL_ACTION_DEFAULT_KO_CREATOR',
+                            'OSS_OSO_MRM_UsimIngestion',
+                            'OSS_OSO_NETDB_SUBMITNEW',
+                            'OSS_OSO_MRM_ChangeStatus'):
             print('>>>>> IL WORKFLOW ' + workflow + ' NON E CORRETTO <<<<<<')
         else:
             payload = {
